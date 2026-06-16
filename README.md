@@ -71,6 +71,13 @@ deep drift, limited ±20° steering): **recoverable states 22% → 73%**:
 
 ![torque vectoring](media/fig_torque_vectoring.png)
 
+**Automatic drift initiation & exit** — a state machine (GRIP → ENTER → DRIFT → EXIT → GRIP)
+wraps the LQR core: a throttle-stab "kick" breaks the rear and lands the state inside the
+controller's basin, the LQR captures and holds the drift, then a lift-and-unwind exit returns
+the car to grip — a full maneuver, not just holding:
+
+![drift entry and exit](media/fig_entry_exit.png)
+
 ---
 
 ## Run it
@@ -84,7 +91,8 @@ drift-figures                        # regenerate the phase portrait + basin map
 drift-learn                          # regenerate the learning experiment
 python -m experiments.estimation_eval        # UKF sideslip estimation result
 python -m experiments.torque_vectoring       # torque-vectoring basin comparison
-pytest                               # run the test suite (33 tests)
+python -m scenarios.drift_entry_exit         # automatic drift initiation + exit
+pytest                               # run the test suite (36 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
@@ -112,6 +120,7 @@ flowchart LR
 | `control/stability.py` | Linearization, eigen-analysis, left/right unstable eigenvectors |
 | `control/corrector.py` | **Steering-only LQR** + friction-circle throttle advice |
 | `control/stability_monitor.py` | Signed unstable-mode coordinate `z_u`, over/understeer, time-to-loss |
+| `control/drift_sequence.py` | State machine for automatic drift initiation & exit |
 | `intent/trajectory.py` | Infer the driver's intended drift (latched, hysteresis, frozen while diverging) |
 | `estimation/ukf.py` | Unscented Kalman Filter: sideslip + accelerometer-bias estimation |
 | `estimation/rls.py`, `learning/tire_residual.py` | Gated online stiffness RLS + learned tire residual |
@@ -132,11 +141,11 @@ wrong sign inverts every cue.
 
 ## Engineering
 
-Typed (`mypy` clean), linted (`ruff`), **95% test coverage** across 33 tests (tire C0/C1
+Typed (`mypy` clean), linted (`ruff`), **~95% test coverage** across 36 tests (tire C0/C1
 continuity, sign conventions, equilibrium branch selection, open-loop instability, UKF
-convergence + bias rejection, torque-vectoring authority, RLS convergence, end-to-end
-scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`), `pip`-installable with
-console entry points.
+convergence + bias rejection, torque-vectoring authority, drift entry/exit, RLS convergence,
+end-to-end scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`), `pip`-installable
+with console entry points.
 
 ## Limitations & the path to a real car
 
