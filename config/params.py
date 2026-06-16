@@ -47,6 +47,9 @@ class VehicleParams:
     # (mu * Fz); we additionally cap commanded force by motor capability:
     Fx_motor_max: float = 9000.0   # N, max drive force per axle (2 motors)
     Fx_brake_max: float = 12000.0  # N, max brake force per axle
+    # Torque-vectoring yaw-moment limit from left/right rear torque split
+    # (~ track/2 * max differential force).  Direct yaw authority the 4-motor EV has.
+    Mz_max: float = 3000.0         # N*m
 
     # --- aerodynamic drag: F_aero = k_aero * v^2 (0.5 * rho * Cd * A) ---
     k_aero: float = 0.40    # N/(m/s)^2
@@ -98,6 +101,9 @@ class ControllerConfig:
     # simple proportional law and (b) is advised back toward F_xr* (the equilibrium
     # drive force) -- the friction-circle anti-spin logic: excess F_xr -> "lift".
     k_speed: float = 1500.0        # N per (m/s) speed-error trim on F_xr
+
+    # Torque-vectoring (optional 2nd actuator): effort penalty on the yaw moment M_z.
+    r_mz: float = 2.0e-5           # ~ 2 / (3000 N*m)^2
 
     # Actuator limits (advisory clipping + escalation triggers)
     delta_max: float = 0.6         # rad, road-wheel angle limit (~34 deg)

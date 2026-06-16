@@ -85,38 +85,43 @@ def compute_forces(
 
 
 def reduced_derivative(
-    x3, delta: float, Fxr: float, p: VehicleParams, mu_f: float, mu_r: float, Fxf: float = 0.0
+    x3, delta: float, Fxr: float, p: VehicleParams, mu_f: float, mu_r: float,
+    Fxf: float = 0.0, Mz: float = 0.0
 ):
     """xdot for x3 = [v_x, v_y, r].  The dynamics the controller linearizes.
 
     Fxr (rear drive force) is the primary input; Fxf (front) defaults to 0 for a
-    rear-biased drift.  Order chosen so the rear force can't be silently swapped."""
+    rear-biased drift.  Mz is an external yaw moment (default 0) produced by left/right
+    TORQUE VECTORING on the 4-motor EV -- it enters the yaw equation directly and so has
+    strong, direct yaw authority (unlike rear drive force at a saturated rear)."""
     vx, vy, r = x3
     f = compute_forces(vx, vy, r, delta, Fxr, p, mu_f, mu_r, Fxf=Fxf)
     cd, sd = math.cos(delta), math.sin(delta)
 
     vx_dot = (f.Fxf * cd - f.Fyf * sd + f.Fxr - f.F_aero) / p.m + vy * r
     vy_dot = (f.Fyf * cd + f.Fxf * sd + f.Fyr) / p.m - vx * r
-    r_dot = (p.a * (f.Fyf * cd + f.Fxf * sd) - p.b * f.Fyr) / p.Iz
+    r_dot = (p.a * (f.Fyf * cd + f.Fxf * sd) - p.b * f.Fyr + Mz) / p.Iz
     return [vx_dot, vy_dot, r_dot]
 
 
 def full_derivative(
-    x6, delta: float, Fxr: float, p: VehicleParams, mu_f: float, mu_r: float, Fxf: float = 0.0
+    x6, delta: float, Fxr: float, p: VehicleParams, mu_f: float, mu_r: float,
+    Fxf: float = 0.0, Mz: float = 0.0
 ):
     """xdot for x6 = [v_x, v_y, r, X, Y, psi] (adds global pose for trajectory)."""
     vx, vy, r, _X, _Y, psi = x6
-    vx_dot, vy_dot, r_dot = reduced_derivative((vx, vy, r), delta, Fxr, p, mu_f, mu_r, Fxf=Fxf)
+    vx_dot, vy_dot, r_dot = reduced_derivative((vx, vy, r), delta, Fxr, p, mu_f, mu_r,
+                                               Fxf=Fxf, Mz=Mz)
     cpsi, spsi = math.cos(psi), math.sin(psi)
     X_dot = vx * cpsi - vy * spsi
     Y_dot = vx * spsi + vy * cpsi
     return [vx_dot, vy_dot, r_dot, X_dot, Y_dot, r]
 
 
-def rk4_step(x6, delta, Fxr, p, mu_f, mu_r, dt: float, Fxf: float = 0.0):
+def rk4_step(x6, delta, Fxr, p, mu_f, mu_r, dt: float, Fxf: float = 0.0, Mz: float = 0.0):
     """One fixed-step RK4 integration of the full 6-state plant."""
     def f(state):
-        return full_derivative(state, delta, Fxr, p, mu_f, mu_r, Fxf=Fxf)
+        return full_derivative(state, delta, Fxr, p, mu_f, mu_r, Fxf=Fxf, Mz=Mz)
 
     k1 = f(x6)
     k2 = f([xi + 0.5 * dt * ki for xi, ki in zip(x6, k1, strict=False)])

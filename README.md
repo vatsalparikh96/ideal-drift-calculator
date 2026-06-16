@@ -56,6 +56,21 @@ under ±40% stiffness error), so learning is a **refinement, never a stability c
 
 ![learning](media/fig_learning.png)
 
+**State estimation (no sideslip sensor)** — a real car can't measure sideslip cheaply, so an
+**Unscented Kalman Filter** estimates the full state `[v_x, v_y, r]` (and an accelerometer bias)
+from noisy IMU + wheel-speed measurements, using the single-track model as the process model.
+It tracks β to **~4° RMSE** and the advisor holds the drift on the *estimated* state — while
+naive dead-reckoning, fooled by accelerometer bias, spins:
+
+![estimation](media/fig_estimation.png)
+
+**Torque vectoring (the 4-motor advantage)** — a left/right rear torque split adds a yaw moment
+`M_z` with *direct* yaw authority (unlike rear drive force at a saturated rear). As a second
+control input it widens the stabilizable region dramatically in a demanding regime (lower grip,
+deep drift, limited ±20° steering): **recoverable states 22% → 73%**:
+
+![torque vectoring](media/fig_torque_vectoring.png)
+
 ---
 
 ## Run it
@@ -67,7 +82,9 @@ drift-drive                          # 🎮 drive it yourself (keyboard)
 drift-demo                           # scenario comparison + animated HUD
 drift-figures                        # regenerate the phase portrait + basin map
 drift-learn                          # regenerate the learning experiment
-pytest                               # run the test suite (27 tests)
+python -m experiments.estimation_eval        # UKF sideslip estimation result
+python -m experiments.torque_vectoring       # torque-vectoring basin comparison
+pytest                               # run the test suite (33 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
@@ -96,6 +113,7 @@ flowchart LR
 | `control/corrector.py` | **Steering-only LQR** + friction-circle throttle advice |
 | `control/stability_monitor.py` | Signed unstable-mode coordinate `z_u`, over/understeer, time-to-loss |
 | `intent/trajectory.py` | Infer the driver's intended drift (latched, hysteresis, frozen while diverging) |
+| `estimation/ukf.py` | Unscented Kalman Filter: sideslip + accelerometer-bias estimation |
 | `estimation/rls.py`, `learning/tire_residual.py` | Gated online stiffness RLS + learned tire residual |
 | `realtime/loop.py` | 100 Hz orchestrator (equilibrium re-solve decimated to 20 Hz) |
 | `hmi/display.py`, `interactive/drive.py` | HUD + the drive-it-yourself sim |
@@ -114,10 +132,11 @@ wrong sign inverts every cue.
 
 ## Engineering
 
-Typed (`mypy` clean), linted (`ruff`), **95% test coverage** across 27 tests (tire C0/C1
-continuity, sign conventions, equilibrium branch selection, open-loop instability, RLS
-convergence, end-to-end scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`),
-`pip`-installable with console entry points.
+Typed (`mypy` clean), linted (`ruff`), **95% test coverage** across 33 tests (tire C0/C1
+continuity, sign conventions, equilibrium branch selection, open-loop instability, UKF
+convergence + bias rejection, torque-vectoring authority, RLS convergence, end-to-end
+scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`), `pip`-installable with
+console entry points.
 
 ## Limitations & the path to a real car
 
