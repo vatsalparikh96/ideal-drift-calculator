@@ -1,0 +1,14 @@
+# Core
+numpy>=1.25
+scipy>=1.11
+matplotlib>=3.7
+
+# Interactive drive-it-yourself demo (drift-drive) + GIF recording
+pygame>=2.5
+pillow>=9.0
+
+# Dev / quality gates
+pytest>=7.0
+pytest-cov>=4.0
+ruff>=0.5
+mypy>=1.8

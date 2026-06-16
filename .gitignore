@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Transient generated media at repo root (curated copies live in media/ and ARE committed)
+/out_comparison.png
+/fig_*.png
+/*.gif
+/*.mp4
+/drive_demo.gif
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

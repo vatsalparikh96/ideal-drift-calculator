@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drift-advisor"
+version = "0.1.0"
+description = "Real-time drift sweet-spot advisor for a 4-motor EV (single-track model, drift-equilibrium LQR, online tire learning)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Vatsal Parikh" }]
+keywords = ["vehicle-dynamics", "control-theory", "drift", "lqr", "single-track", "tire-model"]
+dependencies = [
+    "numpy>=1.25",
+    "scipy>=1.11",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+interactive = ["pygame>=2.5", "pillow>=9.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "ruff>=0.5", "mypy>=1.8"]
+
+[project.scripts]
+drift-demo = "main:main"               # scenario comparison + HUD animation
+drift-drive = "interactive.drive:main" # interactive drive-it-yourself sim
+drift-figures = "analysis.figures:main"
+drift-learn = "experiments.learning_gain:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = [
+    "analysis", "config", "control", "estimation", "experiments", "hmi",
+    "interactive", "intent", "learning", "realtime", "scenarios", "sim",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+# E741: ambiguous 'l' in a matplotlib legend comprehension.
+# E702: semicolon-grouped short assignments (intentional in rendering/color code).
+ignore = ["E741", "E702"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+omit = ["interactive/*", "hmi/*", "analysis/*", "experiments/*", "main.py"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = false
