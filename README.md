@@ -92,7 +92,8 @@ drift-learn                          # regenerate the learning experiment
 python -m experiments.estimation_eval        # UKF sideslip estimation result
 python -m experiments.torque_vectoring       # torque-vectoring basin comparison
 python -m scenarios.drift_entry_exit         # automatic drift initiation + exit
-pytest                               # run the test suite (36 tests)
+python -m experiments.robustness             # robustness sweeps + loop-time budget
+pytest                               # run the test suite (39 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
@@ -156,6 +157,8 @@ with console entry points.
 * Python proves the physics/control/learning; a car needs an RTOS port and, in reality, a
   dual-antenna RTK-GNSS+IMU to *measure* sideslip (here it is given). LQR holds one equilibrium;
   transitions and general paths would use NMPC / nonlinear model inversion.
+
+**Full technical write-up:** [docs/REPORT.md](docs/REPORT.md) (incl. a German Kurzfassung).
 
 **References:** Hindiyeh & Gerdes 2014; Goh, Goel & Gerdes 2020; Velenis et al.; learned-tire
 drift work (Djeumou et al. 2023; Broadbent et al. 2024).
