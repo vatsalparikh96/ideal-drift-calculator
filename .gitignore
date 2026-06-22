@@ -24,6 +24,15 @@ coverage.xml
 /*.mp4
 /drive_demo.gif
 
+# pygbag web build (assembled from source by web/build.py)
+/web/_app/
+# headless probe screenshot artifacts
+/web/_probe.png
+/web/_drive.png
+
+# scratch / temporary
+/tmp/
+
 # OS / editor
 .DS_Store
 .idea/

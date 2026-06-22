@@ -25,7 +25,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.linalg import solve_continuous_are
 
 from config.params import ControllerConfig, VehicleParams
 from control.equilibria import DriftEquilibrium
@@ -33,13 +32,20 @@ from control.stability import controllability, linearize
 from control.tire import friction_budget
 from sim.vehicle_model import compute_forces
 
+# Prefer SciPy's CARE; fall back to a NumPy-only solver so the browser (WASM) build,
+# which ships NumPy but not SciPy, runs the identical control law.  See control._numerics.
+try:
+    from scipy.linalg import solve_continuous_are as _solve_care
+except ImportError:                                  # pragma: no cover - exercised in WASM
+    from control._numerics import solve_care as _solve_care
+
 
 def compute_steering_gain(A: np.ndarray, B: np.ndarray, cfg: ControllerConfig) -> np.ndarray:
     """Steering-only LQR gain K (1x3) from the CARE, using the steering column of B."""
     Bs = B[:, [0]]                      # 3x1 steering input
     Q = np.diag(cfg.Q)
     R = np.array([[cfg.r_delta]])
-    P = solve_continuous_are(A, Bs, Q, R)
+    P = _solve_care(A, Bs, Q, R)
     K = np.linalg.solve(R, Bs.T @ P)    # 1x3
     return K
 

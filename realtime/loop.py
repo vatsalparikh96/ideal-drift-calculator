@@ -53,6 +53,7 @@ class Advisor:
         self._eq_every = max(1, round(rates.control_hz / rates.equilibrium_hz))
         self._last_severity = "ok"
         self.eq: DriftEquilibrium | None = None
+        self._eq_key: tuple | None = None
 
     def update(self, s: SignalSet, dt: float) -> Telemetry:
         p = self.p
@@ -60,14 +61,23 @@ class Advisor:
         stable = self._last_severity != "act"
         target = self.intent.update(s.V, s.beta, stable, dt)
 
-        # 2) slow loop: re-solve equilibrium + refresh controller
+        # 2) slow loop: re-solve equilibrium + refresh controller.  Decimated to the
+        # equilibrium rate AND gated on the (rounded) target/grip actually changing --
+        # re-solving an unchanged target yields the same equilibrium and just burns
+        # compute (costly without SciPy, e.g. the browser/WASM build), so a held drift
+        # solves once and the loop stays cheap.
         if target.in_drift:
-            if self._k % self._eq_every == 0 or self.eq is None or not self.eq.feasible:
+            due = self._k % self._eq_every == 0 or self.eq is None or not self.eq.feasible
+            key = (round(target.V_target, 1), round(target.beta_target, 3),
+                   round(s.mu_f, 3), round(s.mu_r, 3))
+            if due and (key != self._eq_key or self.eq is None or not self.eq.feasible):
                 self.eq = solve_drift_equilibrium(
                     target.V_target, target.beta_target, p, s.mu_f, s.mu_r)
                 self.controller.refresh(self.eq, p, s.mu_f, s.mu_r)
+                self._eq_key = key
         else:
             self.eq = None
+            self._eq_key = None
 
         # 3) monitor + 4) advise
         mon = None

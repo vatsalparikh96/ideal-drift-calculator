@@ -197,38 +197,108 @@ def _hud(screen, pygame, sim, tel, font, bigfont, w, h):
 
 
 # --------------------------------------------------------------------------- modes
-def play():
-    import pygame
-    pygame.init()
+def _bootstrap_display(pygame):
+    """Create the window + fonts (fast).  Shared by the desktop and browser loops."""
     screen = pygame.display.set_mode((1000, 680))
     pygame.display.set_caption("Drift Sweet-Spot Advisor — drive it")
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 16)
     bigfont = pygame.font.SysFont("consolas", 20, bold=True)
+    return screen, clock, font, bigfont
+
+
+def _frame(pygame, screen, sim, dt, font, bigfont):
+    """Process one frame (events, input, sim steps, render).  Returns running:bool."""
+    running = True
+    for ev in pygame.event.get():
+        if ev.type == pygame.QUIT:
+            running = False
+        elif ev.type == pygame.KEYDOWN:
+            if ev.key in (pygame.K_ESCAPE, pygame.K_q):
+                running = False
+            elif ev.key == pygame.K_SPACE:
+                sim.autopilot = not sim.autopilot
+            elif ev.key == pygame.K_r:
+                sim.reset()
+    keys = pygame.key.get_pressed()
+    steer = (keys[pygame.K_LEFT] - keys[pygame.K_RIGHT])        # +left per ISO
+    throttle = 1.0 if keys[pygame.K_UP] else (-1.0 if keys[pygame.K_DOWN] else 0.0)
+    tel = None
+    for _ in range(2):                                          # ~2 sim steps / frame
+        tel = sim.step(dt, steer, throttle)
+    draw(screen, pygame, sim, tel, font, bigfont)
+    pygame.display.flip()
+    return running
+
+
+def play():
+    """Desktop loop (synchronous)."""
+    import pygame
+    pygame.init()
+    screen, clock, font, bigfont = _bootstrap_display(pygame)
     sim = DriveSim()
     dt = DEFAULT_RATES.dt_sim
     running = True
     while running:
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                running = False
-            elif ev.type == pygame.KEYDOWN:
-                if ev.key in (pygame.K_ESCAPE, pygame.K_q):
-                    running = False
-                elif ev.key == pygame.K_SPACE:
-                    sim.autopilot = not sim.autopilot
-                elif ev.key == pygame.K_r:
-                    sim.reset()
-        keys = pygame.key.get_pressed()
-        steer = (keys[pygame.K_LEFT] - keys[pygame.K_RIGHT])    # +left per ISO
-        throttle = 1.0 if keys[pygame.K_UP] else (-1.0 if keys[pygame.K_DOWN] else 0.0)
-        tel = None
-        for _ in range(2):                                       # ~2 sim steps / frame
-            tel = sim.step(dt, steer, throttle)
-        draw(screen, pygame, sim, tel, font, bigfont)
-        pygame.display.flip()
+        running = _frame(pygame, screen, sim, dt, font, bigfont)
         clock.tick(50)
     pygame.quit()
+
+
+async def _present(pygame, screen, frames=3):
+    """Flip + yield a few times so pygbag actually presents the current surface."""
+    import asyncio
+    for _ in range(frames):
+        pygame.display.flip()
+        await asyncio.sleep(0)
+
+
+async def play_async():
+    """Browser loop (pygbag/WASM): identical frame, but yields to the event loop.
+
+    Wrapped so a startup error is painted onto the canvas (the browser console does not
+    always surface Python tracebacks from the WASM runtime) instead of leaving a blank
+    grey canvas.
+    """
+    import asyncio
+    import traceback
+
+    import pygame
+    screen = None
+    try:
+        pygame.init()
+        screen, clock, font, bigfont = _bootstrap_display(pygame)
+        # present the splash over several frames BEFORE the one-time equilibrium solve in
+        # DriveSim(): one flip may not present, and the solve briefly blocks the thread.
+        screen.fill(BG)
+        screen.blit(bigfont.render("Loading drift advisor...", True, FG), (40, 40))
+        await _present(pygame, screen)
+        sim = DriveSim()
+        sim.autopilot = True        # start with the advisor holding the drift (the page can
+        #                             sit through a multi-second load; a hands-off car would
+        #                             coast out of the drift before the visitor interacts).
+        #                             SPACE hands control to the visitor.
+        dt = DEFAULT_RATES.dt_sim
+        running = True
+        while running:
+            running = _frame(pygame, screen, sim, dt, font, bigfont)
+            await asyncio.sleep(0)                              # hand control to the browser
+            clock.tick(50)
+        pygame.quit()
+    except Exception:
+        tb = traceback.format_exc()
+        try:
+            if screen is None:
+                screen = pygame.display.set_mode((1000, 680))
+            ef = pygame.font.SysFont("consolas", 13)
+            screen.fill((12, 12, 16))
+            screen.blit(ef.render("drive demo error:", True, (255, 110, 110)), (12, 10))
+            for i, line in enumerate(tb.splitlines()[-34:]):
+                screen.blit(ef.render(line[:160], True, (230, 180, 180)), (12, 32 + 15 * i))
+            await _present(pygame, screen, 5)
+        except Exception:
+            pass
+        raise
 
 
 def record(path: str, seconds: float = 7.0):

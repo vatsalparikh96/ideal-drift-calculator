@@ -1,0 +1,51 @@
+name: Deploy web demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# allow this workflow to publish a GitHub Pages site
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one in-flight deployment at a time; don't cancel a running one
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true   # create the Pages site if it doesn't exist yet
+      - name: Install pygbag
+        run: |
+          python -m pip install --upgrade pip
+          pip install pygbag
+      - name: Build WASM demo
+        run: python web/build.py
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/_app/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
