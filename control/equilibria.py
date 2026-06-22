@@ -19,11 +19,22 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from scipy.optimize import root
-
 from config.params import VehicleParams
 from control.tire import slide_slip_angle
 from sim.vehicle_model import compute_forces, reduced_derivative
+
+# Prefer SciPy's root-finder; fall back to a NumPy-only Newton solver so the browser
+# (WASM) build, which ships NumPy but not SciPy, solves the identical equilibrium.
+try:
+    from scipy.optimize import root as _scipy_root
+
+    def _root(func, x0, args):
+        return _scipy_root(func, x0, args=args, method="hybr")
+except ImportError:                                  # pragma: no cover - exercised in WASM
+    from control._numerics import root_newton
+
+    def _root(func, x0, args):
+        return root_newton(func, x0, args=args)
 
 
 def _wrap(angle: float) -> float:
@@ -91,8 +102,8 @@ def solve_drift_equilibrium(
                 delta0 = math.copysign(math.radians(dmag), beta_target)  # countersteer
                 Fxr0 = ffrac * mu_r * p.Fzr_static
                 r0 = r_sign * rmag
-                sol = root(_residual, [delta0, Fxr0, r0],
-                           args=(V, beta_target, Fxf, p, mu_f, mu_r), method="hybr")
+                sol = _root(_residual, [delta0, Fxr0, r0],
+                            args=(V, beta_target, Fxf, p, mu_f, mu_r))
                 if not sol.success:
                     continue
                 delta, Fxr, r = _wrap(sol.x[0]), float(sol.x[1]), float(sol.x[2])

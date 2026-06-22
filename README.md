@@ -4,8 +4,12 @@
 tells the driver — every 10 ms — exactly **how to move the steering wheel and accelerator** to
 hold the drift and not spin, blending vehicle-dynamics control with online machine learning.
 
+### ▶ [Play it in your browser](https://vatsalparikh96.github.io/ideal-drift-calculator/) — no install
+
+*The full advisor, compiled to WebAssembly (pygbag): arrow keys to drive, **SPACE** for autopilot.*
+
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
-![tests](https://img.shields.io/badge/tests-27%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-45%20passing-brightgreen)
 ![coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![types](https://img.shields.io/badge/types-mypy-blue)
@@ -93,10 +97,23 @@ python -m experiments.estimation_eval        # UKF sideslip estimation result
 python -m experiments.torque_vectoring       # torque-vectoring basin comparison
 python -m scenarios.drift_entry_exit         # automatic drift initiation + exit
 python -m experiments.robustness             # robustness sweeps + loop-time budget
-pytest                               # run the test suite (39 tests)
+pytest                               # run the test suite (45 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
+
+**Play in the browser locally** (compile to WebAssembly with [pygbag](https://pygame-web.github.io)):
+
+```bash
+pip install pygbag
+python web/build.py                  # -> web/_app/build/web/
+python -m http.server -d web/_app/build/web   # then open http://localhost:8000
+```
+
+The browser build runs the **identical** control law: the two SciPy calls (Riccati/LQR and the
+equilibrium root-find) fall back to NumPy-only implementations (`control/_numerics.py`, pinned to
+SciPy in `tests/test_numerics.py`), so the WASM bundle ships NumPy alone. GitHub Pages is deployed
+automatically by `.github/workflows/pages.yml`.
 
 ---
 
