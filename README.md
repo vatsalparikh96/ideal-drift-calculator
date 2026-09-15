@@ -1,23 +1,16 @@
 # 🏎️ Drift Sweet-Spot Advisor
 
 **A real-time co-pilot that keeps a car in a drift.** It watches a 4-motor EV mid-slide and
-tells the driver — every 10 ms — exactly **how to move the steering wheel and accelerator** to
+tells the driver every 10 ms exactly **how to move the steering wheel and accelerator** to
 hold the drift and not spin, blending vehicle-dynamics control with online machine learning.
 
-### ▶ [Play it in your browser](https://vatsalparikh96.github.io/ideal-drift-calculator/) — no install
+### ▶ [Play it in the browser directly without installing](https://vatsalparikh96.github.io/ideal-drift-calculator/)
 
 *The full advisor, compiled to WebAssembly (pygbag): arrow keys to drive, **SPACE** for autopilot.*
 
-![python](https://img.shields.io/badge/python-3.10%2B-blue)
-![tests](https://img.shields.io/badge/tests-45%20passing-brightgreen)
-![coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
-![lint](https://img.shields.io/badge/lint-ruff-purple)
-![types](https://img.shields.io/badge/types-mypy-blue)
-![license](https://img.shields.io/badge/license-MIT-lightgrey)
-
 ![drive demo](media/drive_demo.gif)
 
-*Drive it yourself — the HUD shows the advisor's steering and pedal **targets**, a stability
+*Drive it yourself where the HUD shows the advisor's steering and pedal **targets**, a stability
 margin, and a live β–r phase dot. Here the driver over-throttles, the advisor flashes
 **LIFT + countersteer**, and the drift is saved.*
 
@@ -25,10 +18,7 @@ margin, and a live β–r phase dot. Here the driver over-throttles, the advisor
 
 ## Why it's interesting
 
-A steady-state drift is an **open-loop-unstable equilibrium** of the vehicle dynamics — left
-alone it diverges into a spin or washes out. Holding it requires active stabilizing feedback.
-This project computes that feedback law in real time and **shows it to the driver** instead of
-taking over.
+A steady-state drift is an **open-loop-unstable equilibrium** of the vehicle dynamics, where if left alone it diverges into a spin or washes out. Holding it requires active stabilizing feedback. This project computes that feedback law in real time and **shows it to the driver** instead of taking over.
 
 The headline result, measured by sweeping thousands of initial drift states:
 
@@ -36,9 +26,7 @@ The headline result, measured by sweeping thousands of initial drift states:
 
 ![basin of attraction](media/fig_basin.png)
 
-The user's exact scenario — *too much throttle mid-drift* — is **friction-circle coupling**:
-extra rear drive force eats the rear tire's lateral grip (`F_yr_max = √((μ·F_zr)² − F_xr²)`),
-yaw runs away, the car spins. The physics-derived fix is exactly **lift throttle + countersteer**:
+The user's exact scenario is **friction-circle coupling**: extra rear drive force eats the rear tire's lateral grip (`F_yr_max = √((μ·F_zr)² − F_xr²)`), yaw runs away, the car spins. The physics-derived fix is exactly **lift throttle + countersteer**:
 
 ![scenario](media/out_comparison.png)
 
@@ -48,11 +36,11 @@ yaw runs away, the car spins. The physics-derived fix is exactly **lift throttle
 
 ## The two sides of the project
 
-**Vehicle dynamics / control** — the drift is an unstable equilibrium stabilized by steering:
+**Vehicle dynamics / control** : the drift is an unstable equilibrium stabilized by steering:
 
 ![phase portrait](media/fig_phase_portrait.png)
 
-**Machine learning / adaptation** — the advisor's tire model self-calibrates online. Recursive
+**Machine learning / adaptation** : the advisor's tire model self-calibrates online. Recursive
 least squares recovers the true cornering stiffness from sub-limit driving, and a small learned
 residual captures tire-curve shape the physics model misses (lateral-force RMSE **−56%** vs a
 Pacejka reference). Crucially, the controller is *robust* to model error (recovery unchanged
@@ -60,25 +48,23 @@ under ±40% stiffness error), so learning is a **refinement, never a stability c
 
 ![learning](media/fig_learning.png)
 
-**State estimation (no sideslip sensor)** — a real car can't measure sideslip cheaply, so an
+**State estimation (no sideslip sensor)** : a real car can't measure sideslip cheaply, so an
 **Unscented Kalman Filter** estimates the full state `[v_x, v_y, r]` (and an accelerometer bias)
 from noisy IMU + wheel-speed measurements, using the single-track model as the process model.
-It tracks β to **~4° RMSE** and the advisor holds the drift on the *estimated* state — while
-naive dead-reckoning, fooled by accelerometer bias, spins:
+It tracks β to **~4° RMSE** and the advisor holds the drift on the *estimated* state whereas while naive dead-reckoning, fooled by accelerometer bias, spins:
 
 ![estimation](media/fig_estimation.png)
 
-**Torque vectoring (the 4-motor advantage)** — a left/right rear torque split adds a yaw moment
+**Torque vectoring (the 4-motor advantage)** : a left/right rear torque split adds a yaw moment
 `M_z` with *direct* yaw authority (unlike rear drive force at a saturated rear). As a second
 control input it widens the stabilizable region dramatically in a demanding regime (lower grip,
 deep drift, limited ±20° steering): **recoverable states 22% → 73%**:
 
 ![torque vectoring](media/fig_torque_vectoring.png)
 
-**Automatic drift initiation & exit** — a state machine (GRIP → ENTER → DRIFT → EXIT → GRIP)
+**Automatic drift initiation & exit** : a state machine (GRIP → ENTER → DRIFT → EXIT → GRIP)
 wraps the LQR core: a throttle-stab "kick" breaks the rear and lands the state inside the
-controller's basin, the LQR captures and holds the drift, then a lift-and-unwind exit returns
-the car to grip — a full maneuver, not just holding:
+controller's basin, the LQR captures and holds the drift, then a lift-and-unwind exit returns the car to win back grip:
 
 ![drift entry and exit](media/fig_entry_exit.png)
 
@@ -97,7 +83,7 @@ python -m experiments.estimation_eval        # UKF sideslip estimation result
 python -m experiments.torque_vectoring       # torque-vectoring basin comparison
 python -m scenarios.drift_entry_exit         # automatic drift initiation + exit
 python -m experiments.robustness             # robustness sweeps + loop-time budget
-pytest                               # run the test suite (45 tests)
+pytest                               # run the test suite (51 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
@@ -121,15 +107,29 @@ automatically by `.github/workflows/pages.yml`.
 
 ```mermaid
 flowchart LR
-    S["signals<br/>V, β, r, δ, F_xr, μ"] --> I["driver intent<br/>(infer the line)"]
-    I --> E["drift equilibrium<br/>(V, β) → β*, δ*, F_xr*"]
-    E --> C["steering LQR<br/>+ throttle logic"]
-    C --> A["advice<br/>steering & pedal targets"]
-    E --> M["stability monitor<br/>z_u, time-to-loss"]
-    S --> M
-    M --> A
-    L["online learning<br/>RLS + tire residual"] -. refines .-> E
+    S["signals<br/>V, β, r, δ, F_xr, μ"] --> I["driver intent<br/>(latch + freeze target)"]
+
+    subgraph slow["slow loop ~20 Hz"]
+        I --> E["drift equilibrium<br/>(V, β) → β*, δ*, F_xr*"]
+        E --> K["linearize + LQR gain"]
+    end
+
+    subgraph fast["fast loop 100 Hz"]
+        K --> C["steering LQR<br/>+ throttle logic"]
+        C --> A["advice<br/>steering & pedal targets"]
+        K --> M["stability monitor<br/>z_u, time-to-loss"]
+        S --> M
+        S --> C
+        M --> A
+    end
+
+    M -. "severity gates 'stable'" .-> I
+    L["online learning<br/>RLS + tire residual"] -. "observe-only refinement (opt-in)" .-> E
 ```
+
+*`realtime/loop.py`'s `Advisor` wires this together every tick; the equilibrium/LQR-gain
+re-solve is decimated to the slow loop since it is comparatively expensive (no-op unless the
+target or grip actually changed) while advice must stay real-time.*
 
 | Module | Role |
 |---|---|
@@ -146,24 +146,23 @@ flowchart LR
 | `hmi/display.py`, `interactive/drive.py` | HUD + the drive-it-yourself sim |
 
 **Why steering-only LQR?** At a saturated rear, the throttle's *linear* yaw authority is ~0
-(`B[:,F_xr] ≈ 1/m`, pure speed) — so steering is the only fast lateral actuator, and throttle is
+(`B[:,F_xr] ≈ 1/m`, pure speed), so steering is the only fast lateral actuator, and throttle is
 the *spin trigger* handled by the nonlinear friction-circle logic. This emerged from numerically
 verifying the model, not from assumption.
 
 ### Sign convention (ISO 8855)
 `x` forward, `y` left, `r>0` = left turn, `β = atan2(v_y, v_x)`, `δ>0` = steer left. A **left
-drift** has `r>0, β<0`, countersteer `δ<0`. Pinned in `config/params.py` and unit-tested — a
-wrong sign inverts every cue.
+drift** has `r>0, β<0`, countersteer `δ<0`. Pinned in `config/params.py` and unit-tested.
 
 ---
 
 ## Engineering
 
-Typed (`mypy` clean), linted (`ruff`), **~95% test coverage** across 36 tests (tire C0/C1
+Typed (`mypy` clean), linted (`ruff`), **~93% test coverage** across 51 tests (tire C0/C1
 continuity, sign conventions, equilibrium branch selection, open-loop instability, UKF
-convergence + bias rejection, torque-vectoring authority, drift entry/exit, RLS convergence,
-end-to-end scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`), `pip`-installable
-with console entry points.
+convergence + bias rejection + dropout recovery, torque-vectoring authority, drift entry/exit,
+driver-intent latching, RLS convergence, end-to-end scenario), CI on Python 3.10–3.12
+(`.github/workflows/ci.yml`), `pip`-installable with console entry points.
 
 ## Limitations & the path to a real car
 

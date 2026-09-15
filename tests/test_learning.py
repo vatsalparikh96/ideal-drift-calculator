@@ -72,3 +72,18 @@ def test_residual_output_bounded():
     for _ in range(50):
         res.update(0.0, mu, Fz, 1e6, beta=0.0, U=0.0, dt=0.01)
     assert abs(res.predict(0.0, mu, Fz)) <= bound + 1e-6
+
+
+def test_residual_ood_reports_low_coverage_and_stays_bounded():
+    """Far outside the trained slip-angle range, the model must not extrapolate
+    confidently: coverage should drop toward 0, and the hard output bound still holds."""
+    res = TireResidualModel(DEFAULT_LEARNING, n_centers=5)
+    mu, Fz = 0.95, 8000.0
+    bound = DEFAULT_LEARNING.resid_bound_frac * mu * Fz
+    alphas = np.radians(np.linspace(-10, 10, 40))     # train only a narrow in-range band
+    for _ in range(40):
+        for a in alphas:
+            res.update(a, mu, Fz, 500.0 * math.sin(a), beta=0.0, U=0.0, dt=0.01)
+    ood_alpha = np.radians(85.0)                       # far beyond the +/-40 deg RBF centers
+    assert res.coverage(ood_alpha) < 0.05
+    assert abs(res.predict(ood_alpha, mu, Fz)) <= bound + 1e-6

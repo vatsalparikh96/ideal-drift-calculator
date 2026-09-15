@@ -22,11 +22,12 @@ lift+countersteer pendulum into the opposite spin.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 
-from config.params import ControllerConfig, VehicleParams
+from config.params import TOLERANCES, ControllerConfig, VehicleParams
 from control.equilibria import DriftEquilibrium
 from control.stability import controllability, linearize
 from control.tire import friction_budget
@@ -38,6 +39,8 @@ try:
     from scipy.linalg import solve_continuous_are as _solve_care
 except ImportError:                                  # pragma: no cover - exercised in WASM
     from control._numerics import solve_care as _solve_care
+
+logger = logging.getLogger(__name__)
 
 
 def compute_steering_gain(A: np.ndarray, B: np.ndarray, cfg: ControllerConfig) -> np.ndarray:
@@ -95,6 +98,7 @@ class DriftController:
         try:
             self.K = compute_steering_gain(A, B, self.cfg)
         except Exception:
+            logger.warning("steering LQR gain solve failed at eq=%s", eq, exc_info=True)
             self.K = None
 
     def advise(self, x3, delta_current: float, Fxr_current: float,
@@ -126,7 +130,7 @@ class DriftController:
         Fxr_min = -p.Fx_brake_max
         delta_clip = float(np.clip(delta_t, -cfg.delta_max, cfg.delta_max))
         Fxr_clip = float(np.clip(Fxr_t, Fxr_min, Fxr_max))
-        steer_saturated = abs(delta_t - delta_clip) > 1e-3
+        steer_saturated = abs(delta_t - delta_clip) > TOLERANCES.steer_saturation
 
         # --- text cues (ISO 8855: delta>0 steer left) ---
         ddelta = delta_clip - delta_current

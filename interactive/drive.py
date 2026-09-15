@@ -37,6 +37,21 @@ from sim.vehicle_model import rk4_step, sideslip, speed
 MU = 0.95
 V0, BETA0 = 12.0, math.radians(-30.0)
 
+
+def steering_fraction(delta: float, dmax: float) -> float:
+    """Map a wheel angle to the [-1, 1] gauge space used by the HUD."""
+    if dmax <= 0:
+        return 0.0
+    return max(-1.0, min(1.0, delta / dmax))
+
+
+def pedal_signal(Fxr: float, p) -> float:
+    """Map the rear-drive/brake force to the human-readable [-1, +1] pedal range."""
+    if Fxr >= 0:
+        return 0.0 if p.Fx_motor_max <= 0 else max(0.0, min(1.0, Fxr / p.Fx_motor_max))
+    return 0.0 if p.Fx_brake_max <= 0 else max(-1.0, min(0.0, Fxr / p.Fx_brake_max))
+
+
 # colors
 BG = (11, 15, 20); FG = (220, 226, 232); DIM = (120, 130, 140)
 CYAN = (0, 200, 220); GOLD = (240, 200, 40); RED = (230, 70, 70)
@@ -146,53 +161,99 @@ def _bar(screen, pygame, x, y, wpx, hpx, frac, color, center=False):
         pygame.draw.rect(screen, color, (x, y, int(wpx * max(0, min(1, frac))), hpx))
 
 
+def _draw_steering_gauge(screen, pygame, center, radius, value, target=None):
+    cx, cy = center
+    thin = 2
+    border = (90, 100, 112)
+    arc = (115, 130, 142)
+    pygame.draw.arc(screen, arc, (cx - radius, cy - radius, radius * 2, radius * 2),
+                    math.radians(210), math.radians(-30), thin)
+    pygame.draw.circle(screen, border, (cx, cy), radius, 1)
+
+    steer_norm = steering_fraction(value, DEFAULT_CONTROLLER.delta_max)
+    angle = math.radians(90 - steer_norm * 120)
+    end = (cx + math.cos(angle) * radius * 0.8, cy - math.sin(angle) * radius * 0.8)
+    pygame.draw.line(screen, CYAN, (cx, cy), end, 4)
+
+    if target is not None:
+        tgt_norm = steering_fraction(target, DEFAULT_CONTROLLER.delta_max)
+        tgt_angle = math.radians(90 - tgt_norm * 120)
+        tgt_end = (cx + math.cos(tgt_angle) * radius * 0.76,
+                   cy - math.sin(tgt_angle) * radius * 0.76)
+        pygame.draw.line(screen, GOLD, (cx, cy), tgt_end, 2)
+
+
+def _draw_pedal_gauge(screen, pygame, center, width, value, target=None):
+    cx, cy = center
+    left = cx - width // 2
+    top = cy - 18
+    pygame.draw.rect(screen, GREY, (left, top, width, 36), 1)
+    pygame.draw.line(screen, GREY, (cx, top), (cx, top + 36), 1)
+
+    current = max(-1.0, min(1.0, value))
+    if current >= 0:
+        fill = int(width * current / 2)
+        pygame.draw.rect(screen, GREEN, (cx, top + 5, max(0, fill), 26), 0)
+    else:
+        fill = int(width * abs(current) / 2)
+        pygame.draw.rect(screen, RED, (cx - fill, top + 5, max(0, fill), 26), 0)
+
+    if target is not None:
+        tgt = max(-1.0, min(1.0, target))
+        if tgt >= 0:
+            fill = int(width * tgt / 2)
+            pygame.draw.rect(screen, GOLD, (cx, top + 27, max(0, fill), 3), 0)
+        else:
+            fill = int(width * abs(tgt) / 2)
+            pygame.draw.rect(screen, GOLD, (cx - fill, top + 27, max(0, fill), 3), 0)
+
+
 def _hud(screen, pygame, sim, tel, font, bigfont, w, h):
     adv, mon = tel.advice, tel.monitor
     b = math.degrees(sideslip(sim.x[0], sim.x[1])); V = speed(sim.x[0], sim.x[1])
-    panel = pygame.Surface((300, h)); panel.set_alpha(220); panel.fill((6, 9, 12))
-    screen.blit(panel, (0, 0))
+    panel_x = 0
+    panel_w = 340
+    panel = pygame.Surface((panel_w, h)); panel.set_alpha(220); panel.fill((6, 9, 12))
+    screen.blit(panel, (panel_x, 0))
 
-    def txt(s, y, c=FG, f=None):
-        screen.blit((f or font).render(s, True, c), (16, y))
+    def txt(s, y, c=FG, f=None, x=18):
+        screen.blit((f or font).render(s, True, c), (x, y))
 
-    txt("DRIFT ADVISOR", 14, FG, bigfont)
+    txt("DRIFT ADVISOR", 18, FG, bigfont)
     sev = mon.severity if mon else "—"
     lab = mon.label if mon else "—"
-    txt(f"{lab.upper()}  ({sev})", 50, SEV.get(sev, DIM), bigfont)
+    txt(f"{lab.upper()}  ({sev})", 52, SEV.get(sev, DIM), bigfont)
 
-    # steering: current vs target
-    txt("STEERING", 92, DIM)
-    dmax = DEFAULT_CONTROLLER.delta_max
-    _bar(screen, pygame, 16, 112, 260, 16, sim.delta / dmax, CYAN, center=True)
+    txt("STEERING", 94, DIM)
+    steer_value = sim.delta
+    target_steer = adv.delta_target if adv and adv.feasible else None
+    _draw_steering_gauge(screen, pygame, (panel_w // 2 - 12, 170), 48, steer_value, target_steer)
     if adv and adv.feasible:
-        tgt = max(-1, min(1, adv.delta_target / dmax))
-        mx = 16 + 130 + int(130 * tgt)
-        pygame.draw.line(screen, GOLD, (mx, 108), (mx, 132), 3)
-    txt(adv.steer_text if adv else "—", 134, GOLD)
+        txt(adv.steer_text, 190, GOLD)
+    else:
+        txt("hold steering", 190, GOLD)
 
-    # throttle/brake: current vs target
-    txt("ACCELERATOR / BRAKE", 168, DIM)
-    g = adv.gas_current if adv else 0.0
-    _bar(screen, pygame, 16, 188, 260, 16, g, GREEN if g >= 0 else RED, center=True)
+    txt("ACCELERATOR / BRAKE", 248, DIM)
+    g = pedal_signal(sim.Fxr, sim.p)
+    gt = adv.gas_target if adv and adv.feasible else None
+    _draw_pedal_gauge(screen, pygame, (panel_w // 2 - 12, 320), 180, g, gt)
     if adv and adv.feasible:
-        gt = max(-1, min(1, adv.gas_target))
-        mx = 16 + 130 + int(130 * gt)
-        pygame.draw.line(screen, GOLD, (mx, 184), (mx, 208), 3)
-    txt(adv.pedal_text if adv else "—", 210, GOLD)
+        txt(adv.pedal_text, 352, GOLD)
+    else:
+        txt("hold throttle", 352, GOLD)
 
-    # margin
-    txt("STABILITY MARGIN", 244, DIM)
+    txt("STABILITY MARGIN", 392, DIM)
     m = mon.margin if mon else 0.0
-    _bar(screen, pygame, 16, 264, 260, 16, m, SEV.get(sev, DIM))
-    txt(f"time-to-loss {mon.tau:.1f}s" if mon else "—", 286, FG)
+    _bar(screen, pygame, 18, 430, 270, 18, m, SEV.get(sev, DIM))
+    txt(f"time-to-loss {mon.tau:.1f}s" if mon else "—", 456, FG)
 
-    txt(f"beta {b:5.0f} deg   (target {math.degrees(BETA0):.0f})", 322, FG)
-    txt(f"V    {V:5.1f} m/s", 344, FG)
-    txt(f"score {sim.score:5.1f} s in sweet spot", 372, GOLD, bigfont)
+    txt(f"beta {b:5.0f} deg   (target {math.degrees(BETA0):.0f})", 492, FG)
+    txt(f"V    {V:5.1f} m/s", 514, FG)
+    txt(f"score {sim.score:5.1f} s in sweet spot", 548, GOLD, bigfont)
     txt("AUTOPILOT ON" if sim.autopilot else "you are driving",
-        404, GREEN if sim.autopilot else DIM)
+        582, GREEN if sim.autopilot else DIM)
     if sim.spun:
-        txt("SPUN OUT — press R", 432, RED, bigfont)
+        txt("SPUN OUT — press R", 610, RED, bigfont)
     txt("arrows steer/throttle  SPACE autopilot  R reset", h - 28, DIM)
 
 

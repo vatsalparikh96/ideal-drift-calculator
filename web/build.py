@@ -28,7 +28,7 @@ def assemble() -> Path:
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc")
     for pkg in PACKAGES:
         shutil.copytree(ROOT / pkg, APP / pkg, ignore=ignore)
-    shutil.copy2(ROOT / "web" / "main.py", APP / "main.py")
+    shutil.copy2(ROOT / "web" / "entry.py", APP / "main.py")
     return APP
 
 

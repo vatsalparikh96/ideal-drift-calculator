@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from config.params import MonitorConfig, VehicleParams
+from config.params import TOLERANCES, MonitorConfig, VehicleParams
 from control.equilibria import DriftEquilibrium
 from control.stability import unstable_mode
 from sim.vehicle_model import compute_forces
@@ -67,7 +67,8 @@ class StabilityMonitor:
             z_u, lambda_u, complex_unstable = 0.0, 0.0, False
 
         # --- time-to-loss (open-loop divergence) ---
-        if lambda_u > 1e-3 and abs(z_u) < cfg.z_thresh and abs(z_u) > 1e-9:
+        if (lambda_u > TOLERANCES.lambda_u_min and abs(z_u) < cfg.z_thresh
+                and abs(z_u) > TOLERANCES.z_u_min):
             tau = (1.0 / lambda_u) * math.log(cfg.z_thresh / abs(z_u))
             tau = max(cfg.tau_floor, min(cfg.tau_safe, tau))
         elif abs(z_u) >= cfg.z_thresh:

@@ -17,6 +17,7 @@ estimator's β diverges and the car spins.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -44,7 +45,7 @@ def _run(mode: str, seed: int = 0, T: float = 6.0):
     x = [eq.vx, eq.vy, eq.r * 1.05, 0.0, 0.0, 0.0]
     delta, Fxr = eq.delta, eq.Fxr
     dt = 0.01
-    hist = {k: [] for k in ("t", "beta_true", "beta_est", "spun")}
+    hist: dict[str, Any] = {k: [] for k in ("t", "beta_true", "beta_est", "spun")}
     spun = False
     for k in range(int(T / dt)):
         f = compute_forces(x[0], x[1], x[2], delta, Fxr, P, MU, MU, Fxf=eq.Fxf)

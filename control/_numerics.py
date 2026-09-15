@@ -14,6 +14,8 @@ from typing import Any
 
 import numpy as np
 
+from config.params import TOLERANCES
+
 
 def solve_care(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> np.ndarray:
     """Continuous-time algebraic Riccati solution via the Hamiltonian eigenvectors.
@@ -80,11 +82,11 @@ def root_newton(func: Callable[..., Any], x0, args: tuple = (),
         if f_new is None:                       # no decrease found -> stuck
             return RootResult(x, False)
         x, f = x_new, f_new
-    return RootResult(x, bool(np.linalg.norm(f) < 1e-6))
+    return RootResult(x, bool(np.linalg.norm(f) < TOLERANCES.equilibrium_residual))
 
 
 def _fd_jacobian(func: Callable[..., Any], x: np.ndarray, f0: np.ndarray,
-                 args: tuple, eps: float = 1e-7) -> np.ndarray:
+                 args: tuple, eps: float = TOLERANCES.fd_jacobian_eps) -> np.ndarray:
     n = x.size
     J = np.empty((f0.size, n))
     for i in range(n):

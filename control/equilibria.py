@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from config.params import VehicleParams
+from config.params import TOLERANCES, VehicleParams
 from control.tire import slide_slip_angle
 from sim.vehicle_model import compute_forces, reduced_derivative
 
@@ -107,7 +107,7 @@ def solve_drift_equilibrium(
                 if not sol.success:
                     continue
                 delta, Fxr, r = _wrap(sol.x[0]), float(sol.x[1]), float(sol.x[2])
-                if abs(r) < 1e-3 or math.copysign(1.0, r) != r_sign:
+                if abs(r) < TOLERANCES.r_near_zero or math.copysign(1.0, r) != r_sign:
                     continue
                 if vx <= 0.0:
                     continue
