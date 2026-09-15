@@ -10,7 +10,7 @@ never required for the stability guarantee.
 """
 from __future__ import annotations
 
-from config.params import LearningConfig
+from config.params import TOLERANCES, LearningConfig
 
 
 class ScalarRLS:
@@ -75,4 +75,6 @@ class MotorRadiusEstimator:
 
     @property
     def r_eff(self) -> float:
-        return 1.0 / self.rls.theta if self.rls.theta > 1e-6 else float("inf")
+        if self.rls.theta > TOLERANCES.theta_zero_guard:
+            return 1.0 / self.rls.theta
+        return float("inf")

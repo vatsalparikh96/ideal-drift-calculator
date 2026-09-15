@@ -83,5 +83,6 @@ class DriverIntent:
 
 
 def _clamp_beta(beta: float, cfg: IntentConfig) -> float:
+    """Project beta onto the feasible drift band [beta_min, beta_max], preserving sign."""
     s = math.copysign(1.0, beta) if beta != 0 else 1.0
     return s * min(cfg.beta_max, max(cfg.beta_min, abs(beta)))

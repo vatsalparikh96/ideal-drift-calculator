@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from config.params import VehicleParams
+from config.params import TOLERANCES, VehicleParams
 from control.equilibria import DriftEquilibrium
 from sim.vehicle_model import reduced_derivative
 
@@ -73,7 +73,7 @@ def unstable_mode(A: np.ndarray, scale=(1.0, 1.0, 10.0)) -> UnstableMode:
     valsL, L = np.linalg.eig(Ay.T)
 
     reals = vals.real
-    n_unstable = int(np.sum(reals > 1e-6))
+    n_unstable = int(np.sum(reals > TOLERANCES.eigenvalue_noise_floor))
     iu = int(np.argmax(reals))                      # dominant unstable (or least stable)
     lam = vals[iu]
 
@@ -82,7 +82,7 @@ def unstable_mode(A: np.ndarray, scale=(1.0, 1.0, 10.0)) -> UnstableMode:
     jl = int(np.argmin(np.abs(valsL - lam)))
     w = L[:, jl]
 
-    complex_unstable = abs(lam.imag) > 1e-6
+    complex_unstable = abs(lam.imag) > TOLERANCES.eigenvalue_noise_floor
     v_r = np.real(v)
     w_r = np.real(w)
     denom = float(w_r @ v_r)

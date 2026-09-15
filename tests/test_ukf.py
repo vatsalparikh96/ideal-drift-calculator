@@ -50,3 +50,36 @@ def test_filter_is_stable():
     est, rmse, _ = _run(bias_ay=0.0)
     assert np.all(np.isfinite(est.x))
     assert math.isfinite(rmse)
+
+
+def test_recovers_after_measurement_dropout():
+    """A window of stale (zero-order-hold) measurements -- e.g. a sensor dropout --
+    must not blow up the filter; covariance stays finite/PSD throughout, and beta
+    reconverges once fresh measurements resume."""
+    rng = np.random.default_rng(2)
+    eq = solve_drift_equilibrium(12.0, math.radians(-30), P, MU, MU)
+    est = DriftStateEstimator(P, MU, x0=[eq.vx, 0.0, eq.r])
+    x = [eq.vx, eq.vy, eq.r, 0.0, 0.0, 0.0]
+    dt = 0.01
+    dropout_start, dropout_len = 150, 50
+    stale_z = None
+    errs = []
+    for k in range(400):
+        f = compute_forces(x[0], x[1], x[2], eq.delta, eq.Fxr, P, MU, MU, Fxf=eq.Fxf)
+        z = [x[2] + rng.normal(0, 0.01),
+             x[0] + rng.normal(0, 0.10),
+             f.ax_body + rng.normal(0, 0.20),
+             f.ay_body + rng.normal(0, 0.20)]
+        if dropout_start <= k < dropout_start + dropout_len:
+            stale_z = stale_z if stale_z is not None else z   # freeze at dropout onset
+            z_used = stale_z
+        else:
+            stale_z, z_used = None, z
+        est.update(z_used, eq.delta, eq.Fxr, dt, Fxf=eq.Fxf)
+        x = rk4_step(x, eq.delta, eq.Fxr, P, MU, MU, dt, Fxf=eq.Fxf)
+        assert np.all(np.isfinite(est.x)) and np.all(np.isfinite(est.P))
+        assert np.all(np.linalg.eigvalsh(est.P) > -1e-6)      # covariance stays PSD
+        if k > 350:                                            # well after dropout ends
+            errs.append(math.degrees(est.beta) - math.degrees(sideslip(x[0], x[1])))
+    rmse = float(np.sqrt(np.mean(np.square(errs))))
+    assert rmse < 6.0                                          # reconverged like a fresh run

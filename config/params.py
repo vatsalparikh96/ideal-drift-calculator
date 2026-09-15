@@ -165,12 +165,30 @@ class LoopRates:
         return 1.0 / self.sim_hz
 
 
+@dataclass(frozen=True)
+class Tolerances:
+    """Numerical comparison thresholds shared by the solvers, linearization, and
+    estimators (centralized so they don't drift independently). Finite-difference
+    STEP SIZES (e.g. control/stability.py's dx, du) are physical perturbation
+    magnitudes, not correctness thresholds, and stay next to their call sites."""
+
+    equilibrium_residual: float = 1e-6   # control/_numerics.py: accept a Newton root
+    fd_jacobian_eps: float = 1e-7        # control/_numerics.py: FD Jacobian perturbation
+    r_near_zero: float = 1e-3            # control/equilibria.py: reject near-zero yaw-rate roots
+    steer_saturation: float = 1e-3       # control/corrector.py: steering-clip detection
+    eigenvalue_noise_floor: float = 1e-6 # control/stability.py: real/imag eigenvalue noise floor
+    lambda_u_min: float = 1e-3           # control/stability_monitor.py: min divergence rate for tau
+    z_u_min: float = 1e-9                # control/stability_monitor.py: near-zero z_u guard
+    theta_zero_guard: float = 1e-6       # estimation/rls.py: avoid divide-by-zero on theta
+
+
 # Convenient module-level defaults
 DEFAULT_VEHICLE = VehicleParams()
 DEFAULT_CONTROLLER = ControllerConfig()
 DEFAULT_MONITOR = MonitorConfig()
 DEFAULT_LEARNING = LearningConfig()
 DEFAULT_RATES = LoopRates()
+TOLERANCES = Tolerances()
 
 # Nominal friction (per axle) when not otherwise supplied; in the sim mu is a signal.
 MU_NOMINAL = 0.95

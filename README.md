@@ -8,9 +8,10 @@ hold the drift and not spin, blending vehicle-dynamics control with online machi
 
 *The full advisor, compiled to WebAssembly (pygbag): arrow keys to drive, **SPACE** for autopilot.*
 
+[![CI](https://github.com/vatsalparikh96/ideal-drift-calculator/actions/workflows/ci.yml/badge.svg)](https://github.com/vatsalparikh96/ideal-drift-calculator/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
-![tests](https://img.shields.io/badge/tests-45%20passing-brightgreen)
-![coverage](https://img.shields.io/badge/coverage-95%25-brightgreen)
+![tests](https://img.shields.io/badge/tests-51%20passing-brightgreen)
+![coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)
 ![lint](https://img.shields.io/badge/lint-ruff-purple)
 ![types](https://img.shields.io/badge/types-mypy-blue)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
@@ -97,7 +98,7 @@ python -m experiments.estimation_eval        # UKF sideslip estimation result
 python -m experiments.torque_vectoring       # torque-vectoring basin comparison
 python -m scenarios.drift_entry_exit         # automatic drift initiation + exit
 python -m experiments.robustness             # robustness sweeps + loop-time budget
-pytest                               # run the test suite (45 tests)
+pytest                               # run the test suite (51 tests)
 ```
 
 Controls: **←/→** steer · **↑** throttle · **↓** brake · **SPACE** autopilot · **R** reset.
@@ -121,15 +122,29 @@ automatically by `.github/workflows/pages.yml`.
 
 ```mermaid
 flowchart LR
-    S["signals<br/>V, β, r, δ, F_xr, μ"] --> I["driver intent<br/>(infer the line)"]
-    I --> E["drift equilibrium<br/>(V, β) → β*, δ*, F_xr*"]
-    E --> C["steering LQR<br/>+ throttle logic"]
-    C --> A["advice<br/>steering & pedal targets"]
-    E --> M["stability monitor<br/>z_u, time-to-loss"]
-    S --> M
-    M --> A
-    L["online learning<br/>RLS + tire residual"] -. refines .-> E
+    S["signals<br/>V, β, r, δ, F_xr, μ"] --> I["driver intent<br/>(latch + freeze target)"]
+
+    subgraph slow["slow loop ~20 Hz"]
+        I --> E["drift equilibrium<br/>(V, β) → β*, δ*, F_xr*"]
+        E --> K["linearize + LQR gain"]
+    end
+
+    subgraph fast["fast loop 100 Hz"]
+        K --> C["steering LQR<br/>+ throttle logic"]
+        C --> A["advice<br/>steering & pedal targets"]
+        K --> M["stability monitor<br/>z_u, time-to-loss"]
+        S --> M
+        S --> C
+        M --> A
+    end
+
+    M -. "severity gates 'stable'" .-> I
+    L["online learning<br/>RLS + tire residual"] -. "observe-only refinement (opt-in)" .-> E
 ```
+
+*`realtime/loop.py`'s `Advisor` wires this together every tick; the equilibrium/LQR-gain
+re-solve is decimated to the slow loop since it is comparatively expensive (no-op unless the
+target or grip actually changed) while advice must stay real-time.*
 
 | Module | Role |
 |---|---|
@@ -159,11 +174,11 @@ wrong sign inverts every cue.
 
 ## Engineering
 
-Typed (`mypy` clean), linted (`ruff`), **~95% test coverage** across 36 tests (tire C0/C1
+Typed (`mypy` clean), linted (`ruff`), **~93% test coverage** across 51 tests (tire C0/C1
 continuity, sign conventions, equilibrium branch selection, open-loop instability, UKF
-convergence + bias rejection, torque-vectoring authority, drift entry/exit, RLS convergence,
-end-to-end scenario), CI on Python 3.10–3.12 (`.github/workflows/ci.yml`), `pip`-installable
-with console entry points.
+convergence + bias rejection + dropout recovery, torque-vectoring authority, drift entry/exit,
+driver-intent latching, RLS convergence, end-to-end scenario), CI on Python 3.10–3.12
+(`.github/workflows/ci.yml`), `pip`-installable with console entry points.
 
 ## Limitations & the path to a real car
 
